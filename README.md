@@ -19,7 +19,9 @@ Only one instance of minimap is needed to configure multiple minimap views, they
 
 The minimap will track whatever buffer is open in its boss view, highlighting the currently visible lines.
 
+Click on the minimap to jump to the corresponding section of the main buffer.
+
 ## Known bugs
-- Closing either the boss view or minimap crashes Textadept (doesn't clean up references yet). Reset Lua before you unsplit.
 - The boss view has to be focused to update the scrolled range in the minimap.
-- Hotspot clicks always take you to the same incorrect spot.
+- The displayed range in the minimap "wobbles" due to tabs being... difficult to handle with virtual space.
+- The boss view doesn't sync correctly when the buffer is changed yet. It can be fixed by unsplitting and resplitting.
