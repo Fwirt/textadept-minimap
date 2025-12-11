@@ -3,7 +3,9 @@
 Minimap is a textadept module that helps you zoom out on your code and see the big picture.
 
 Install this module by copying it into your ~/.textadept/modules/ directory or Textadept's modules/ directory.
+
 ![](./demo.gif)
+
 To add a minimap of the current view:
 
 ```lua
