@@ -1,8 +1,11 @@
+-- Copyright (c) 2025 Fwirt. See LICENSE.
+
+-- A Textadept module for displaying a minimap of a buffer
+
 local M = {}
 
 local cols = 120
-local window_highlight = 0xcccccc
-local line_highlight = 0xcc0000
+local window_highlight = 0xffaaaaaa
 
 local function minimap()
 	local columns = cols
@@ -20,9 +23,11 @@ local function minimap()
 	miniview.extra_descent = -1
 	miniview.margins = 0
 	miniview.margin_left = 1
+	miniview.margin_right = 1
 	miniview.virtual_space_options = miniview.VS_RECTANGULARSELECTION
 	miniview.scroll_width_tracking = false
 	miniview.scroll_width = 1
+	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = window_highlight
 	miniview.h_scroll_bar = false
 	miniview:set_x_caret_policy(0, -1)
 	miniview:set_y_caret_policy(miniview.CARET_STRICT & miniview.CARET_EVEN, -1)
@@ -30,20 +35,28 @@ local function minimap()
 
 	local fixed_width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + 20
 	miniview.width = fixed_width
-
-	local one_char_width = miniview:text_width(miniview.STYLE_DEFAULT, 'W')
+	
+	local function sync_views()
+		if miniview.buffer ~= bossview.buffer then
+			miniview:goto_buffer(bossview.buffer)
+			ui.goto_view(miniview)
+			bossview:goto_buffer(miniview.buffer)
+			ui.goto_view(bossview)
+		end
+	end
+	
 	
 	-- Highlight the portion of the buffer displayed in the boss view
 	local function update_window(updated)
 		local bv, mv = bossview, miniview
-		if miniview.buffer ~= bossview.buffer then miniview:goto_buffer(bossview.buffer) end
+		sync_views()
 		--if not (updated & bv.UPDATE_V_SCROLL) then return end
 		local start = bv.first_visible_line
 		local ending = start + bv.lines_on_screen
-		local ending_start = mv:position_from_line(ending)
+		local ending_start = bv:position_from_line(ending)
 		local ending_end = bv.line_end_position[ending]
 		local ending_length = ending_end - ending_start
-		ui.statusbar_text = ending_length
+
 		window_height = ending - start
 		mv.rectangular_selection_anchor = mv:position_from_line(start)
 		mv.rectangular_selection_anchor_virtual_space = 0
@@ -57,7 +70,7 @@ local function minimap()
 	-- Jump to the clicked position in the minimap
 	local function jump_to_click(updated)
 		local bv, mv = bossview, miniview
-		if miniview.buffer ~= bossview.buffer then miniview:goto_buffer(bossview.buffer) end
+		sync_views()
 		if (updated & mv.UPDATE_SELECTION) and (_G.view == mv) 
 			and (mv.current_pos == mv.anchor) then
 			local line = mv:line_from_position(mv.current_pos)
@@ -78,8 +91,13 @@ local function minimap()
 	local function reset_x()
 		miniview.x_offset = 0
 	end
+	
+	local function block_switch_events()
+		if view == miniview then return true end
+	end
 
 	-- Do a binary search to find how many chars the window is wide
+	local one_char_width = miniview:text_width(miniview.STYLE_DEFAULT, 'W')
 	local function chars_from_width(width, chars)
 		local next_chars
 		local test_width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', chars))
@@ -100,12 +118,16 @@ local function minimap()
 	events.connect(events.UPDATE_UI, jump_to_click)
 	events.connect(events.UPDATE_UI, update_window)
 	events.connect(events.UPDATE_UI, reset_x)
+	events.connect(events.BUFFER_BEFORE_SWITCH, block_switch_events, 1)
+	events.connect(events.BUFFER_AFTER_SWITCH, block_switch_events, 1)
 	
 	local function cleanup()
 		events.disconnect(events.VIEW_AFTER_SWITCH, clear_window)
 		events.disconnect(events.UPDATE_UI, jump_to_click)
 		events.disconnect(events.UPDATE_UI, update_window)
 		events.disconnect(events.UPDATE_UI, reset_x)
+		events.disconnect(events.BUFFER_BEFORE_SWITCH, block_switch_events)
+		events.disconnect(events.BUFFER_AFTER_SWITCH, block_switch_events)
 	end
 	
 	local function catch_unsplit(self)
@@ -116,6 +138,14 @@ local function minimap()
 	miniview._unsplit, miniview.unsplit = miniview.unsplit, catch_unsplit
 	bossview._unsplit, bossview.unsplit = bossview.unsplit, catch_unsplit
 
+	-- FIXME: This crashes TA right now, figure out why
+	--[[events.connect(events.RESET_BEFORE, function ()
+		cleanup()
+		miniview:unsplit()
+	end)]]
 end
 
-return minimap
+local meta = { __call = minimap }
+setmetatable(M, meta)
+
+return M
