@@ -2,17 +2,56 @@
 
 -- A Textadept module for displaying a minimap of a buffer
 
+-- TODO:
+--  +make minimaps individually configurable
+--  +close minimap on reset/Textadept close or save to session
+--  +set minimap width based on boss view scroll width instead of fixed value
+
 local M = {}
 
-local cols = 120
+local min_columns = 100
+local padding = 5
 local window_highlight = 0xffaaaaaa
+local font = "Minimap"
+local font_size = 1
 
+-- Do a binary search to find how many chars a window is wide
+--[[local function chars_from_width(chars, width, char_px)
+	local test_width
+	while math.abs(width - test_width) <= char_px + 1 do
+		test_width = chars * chars_px
+		if test_width > width then
+			chars = chars - chars//2
+		else
+			chars = chars + chars//2
+		end
+	end
+	return chars
+end]]
+	
+function longest_line(view)
+	local line, line_length = 0, 0
+	local longest_line, longest_length = 0, 0
+	local tab_width = view.tab_width
+	local last_line = view.line_count
+	repeat
+		line = line + 1
+		line_length = view.column[view.line_end_position[line]]
+		if line_length > longest_length then
+			longest_length = line_length
+			longest_line = line
+		end
+	until line >= last_line
+	return longest_line, longest_length
+end
+	
 local function minimap()
-	local columns = cols
 	local bossview = view:split(true)
 	local miniview = view
 	local window_height = 0
 	local one_char_width
+	-- the width of the widest alphanumeric character in px
+	local boss_cur_width = bossview.scroll_width
 
 	s = view.styles[view.STYLE_DEFAULT]
 	s.font = "Minimap" -- https://github.com/davestewart/minimap-font
@@ -24,18 +63,22 @@ local function minimap()
 	miniview.margins = 0
 	miniview.margin_left = 1
 	miniview.margin_right = 1
-	miniview.virtual_space_options = miniview.VS_RECTANGULARSELECTION
+	miniview.tab_minimum_width = 0
 	miniview.scroll_width_tracking = false
 	miniview.scroll_width = 1
+	miniview.virtual_space_options = miniview.VS_RECTANGULARSELECTION
 	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = window_highlight
 	miniview.h_scroll_bar = false
 	miniview:set_x_caret_policy(0, -1)
 	miniview:set_y_caret_policy(miniview.CARET_STRICT & miniview.CARET_EVEN, -1)
+	miniview.indentation_guides = miniview.IV_NONE
 	-- miniview.caret_style = miniview.CARETSTYLE_INVISIBLE
-
-	local fixed_width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + 20
-	miniview.width = fixed_width
 	
+	local long_line, columns = longest_line(bossview)
+	columns = math.max(columns, min_columns)
+	miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + padding
+	
+	-- I really don't like this but I can't find another way to make it behave
 	local function sync_views()
 		if miniview.buffer ~= bossview.buffer then
 			miniview:goto_buffer(bossview.buffer)
@@ -45,8 +88,8 @@ local function minimap()
 		end
 	end
 	
-	
 	-- Highlight the portion of the buffer displayed in the boss view
+	-- and adjust the window width to accomodate the widest line
 	local function update_window(updated)
 		local bv, mv = bossview, miniview
 		sync_views()
@@ -56,15 +99,45 @@ local function minimap()
 		local ending_start = bv:position_from_line(ending)
 		local ending_end = bv.line_end_position[ending]
 		local ending_length = ending_end - ending_start
+		
+		-- FIXME: use
+		-- mv.column[mv.line_end_position[line]]
+		-- instead of manually calculating this
+		--
+		-- tabs are 1 char but take up a variable number visually, so we have to
+		-- calculate virtual space accordingly
+		local ending_line = string.sub(bv:get_line(ending),1,ending_length + 1)
+		local ending_vs = columns - ending_length
+		local tabspace = 0
+		for i = 1, ending_length do
+			if string.sub(ending_line, i, i) == "\t" then
+				tabspace = tabspace + (mv.tab_width - 1)
+			end
+		end
+		local 
+		ending_vs = ending_vs - tabspace
 
 		window_height = ending - start
 		mv.rectangular_selection_anchor = mv:position_from_line(start)
 		mv.rectangular_selection_anchor_virtual_space = 0
-		mv.rectangular_selection_caret = ending_start + math.min(ending_length, columns)
-		mv.rectangular_selection_caret_virtual_space =
-			ending_length > columns and 0 or columns - ending_length
+		-- also adjust caret if the line is too_long
+		mv.rectangular_selection_caret = ending_start +
+			(ending_length + tabspace < columns and ending_length
+			 or columns - tabspace)
+		mv.rectangular_selection_caret_virtual_space = ending_vs
 		mv.x_offset = 0
 		mv.scroll_width = 1
+	end
+	
+	-- Adjust the width of the mini view to accomodate
+	-- the longest line of the bossview
+	local function adjust_width()
+		if boss_cur_width ~= bossview.scroll_width then
+			boss_cur_width = bossview.scroll_width
+			long_line, columns = longest_line(bossview)
+			columns = math.max(columns, min_columns)
+			miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + padding
+		end
 	end
 	
 	-- Jump to the clicked position in the minimap
@@ -95,26 +168,9 @@ local function minimap()
 	local function block_switch_events()
 		if view == miniview then return true end
 	end
-
-	-- Do a binary search to find how many chars the window is wide
-	local one_char_width = miniview:text_width(miniview.STYLE_DEFAULT, 'W')
-	local function chars_from_width(width, chars)
-		local next_chars
-		local test_width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', chars))
-		if test_width > width then
-			next_chars = chars - chars//2
-		else
-			next_chars = chars + chars//2
-		end
-		-- base case
-		if math.abs(width - test_width) <= one_char_width then
-			return next_chars
-		end
-		-- tail call
-		return chars_from_width(view, width, next_chars)
-	end
 	
 	events.connect(events.VIEW_AFTER_SWITCH, clear_window)
+	events.connect(events.UPDATE_UI, adjust_width)
 	events.connect(events.UPDATE_UI, jump_to_click)
 	events.connect(events.UPDATE_UI, update_window)
 	events.connect(events.UPDATE_UI, reset_x)

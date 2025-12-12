@@ -23,5 +23,4 @@ Click on the minimap to jump to the corresponding section of the main buffer.
 ## Known bugs
 - The boss view has to be focused to update the scrolled range in the minimap.
   - This is either a Scintilla or Textadept bug, an unfocused view does not emit UPDATE_UI events.
-- The displayed range in the minimap "wobbles" due to tabs being... difficult to handle with virtual space.
 - The minimap does not always close properly if views are unsplit in a strange order.
