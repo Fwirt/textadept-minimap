@@ -20,7 +20,14 @@ The minimap will track whatever buffer is open in its boss view, highlighting th
 
 Click on the minimap to jump to the corresponding section of the main buffer.
 
+## Notes
+
+Performance may be poor on large buffers due to the fact that Scintilla is software rendering the entire buffer, just at a tiny size.
+If this happens to you, try making the minimap smaller. I may include some options in the future to improve performance.
+
 ## Known bugs
 - The boss view has to be focused to update the scrolled range in the minimap.
   - This is either a Scintilla or Textadept bug, an unfocused view does not emit UPDATE_UI events.
 - The minimap does not always close properly if views are unsplit in a strange order.
+- Prevents switching to the output buffer automatically
+  - I think this is because the Output Buffer tries to open in the minimap split but the minimap blocks buffer switching.

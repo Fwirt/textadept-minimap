@@ -83,11 +83,13 @@ local function minimap()
 	
 	-- I really don't like this but I can't find another way to make it behave
 	local function sync_views()
+		local current_view = view
 		if miniview.buffer ~= bossview.buffer then
 			miniview:goto_buffer(bossview.buffer)
 			ui.goto_view(miniview)
 			bossview:goto_buffer(miniview.buffer)
 			ui.goto_view(bossview)
+			ui.goto_view(view)
 		end
 	end
 	
@@ -147,6 +149,7 @@ local function minimap()
 		end
 	end
 	
+	-- Clear the selection before the click is passed to Scintilla
 	local function clear_window()
 		if view == miniview then miniview:set_empty_selection(0) end
 	end
@@ -160,35 +163,35 @@ local function minimap()
 	end
 	
 	events.connect(events.VIEW_AFTER_SWITCH, clear_window)
+	events.connect(events.VIEW_AFTER_SWITCH, sync_views)
 	events.connect(events.UPDATE_UI, adjust_width)
 	events.connect(events.UPDATE_UI, jump_to_click)
 	events.connect(events.UPDATE_UI, update_window)
 	events.connect(events.UPDATE_UI, reset_x)
+	events.connect(events.BUFFER_AFTER_SWITCH, sync_views)
 	events.connect(events.BUFFER_BEFORE_SWITCH, block_switch_events, 1)
 	events.connect(events.BUFFER_AFTER_SWITCH, block_switch_events, 1)
 	
 	local function cleanup()
 		events.disconnect(events.VIEW_AFTER_SWITCH, clear_window)
+		events.disconnect(events.VIEW_AFTER_SWITCH, sync_views)
+		events.disconnect(events.UPDATE_UI, adjust_width)
 		events.disconnect(events.UPDATE_UI, jump_to_click)
 		events.disconnect(events.UPDATE_UI, update_window)
 		events.disconnect(events.UPDATE_UI, reset_x)
+		events.disconnect(events.BUFFER_AFTER_SWITCH, sync_views)
 		events.disconnect(events.BUFFER_BEFORE_SWITCH, block_switch_events)
 		events.disconnect(events.BUFFER_AFTER_SWITCH, block_switch_events)
+		miniview.unsplit, miniview.unsplit = miniview._unsplit, nil
+		bossview.unsplit, bossview.unsplit = bossview._unsplit, nil
+		events.disconnect(events.RESET_BEFORE, cleanup)
+		bossview:unsplit()
 	end
 	
-	local function catch_unsplit(self)
-		cleanup()
-		self.unsplit, self._unsplit = self._unsplit, nil
-		self.unsplit(self)
-	end
-	miniview._unsplit, miniview.unsplit = miniview.unsplit, catch_unsplit
-	bossview._unsplit, bossview.unsplit = bossview.unsplit, catch_unsplit
+	miniview._unsplit, miniview.unsplit = miniview.unsplit, cleanup
+	bossview._unsplit, bossview.unsplit = bossview.unsplit, cleanup
 
-	-- FIXME: This crashes TA right now, figure out why
-	--[[events.connect(events.RESET_BEFORE, function ()
-		cleanup()
-		miniview:unsplit()
-	end)]]
+	events.connect(events.RESET_BEFORE, cleanup)
 end
 
 local meta = { __call = minimap }
