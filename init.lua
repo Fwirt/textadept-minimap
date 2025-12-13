@@ -5,15 +5,18 @@
 -- TODO:
 --  +make minimaps individually configurable
 --  +close minimap on reset/Textadept close or save to session
---  +set minimap width based on boss view scroll width instead of fixed value
+--  +add option to display current range by changing line background
+--   (for proportional fonts where rectangular select won't work)
+--  +disable lexer for minimap buffer (the bossview should handle it)
 
 local M = {}
 
-local min_columns = 100
-local padding = 5
-local window_highlight = 0xffaaaaaa
-local font = "Minimap"
-local font_size = 1
+local min_columns = 100 -- The minimum width of the minimap window, in text columns
+local padding = 5 -- Right margin for the minimap
+local highlight_color = 0xffaaaaaa -- Color of the current location highlight
+local font = "Minimap" -- The font to use for the minimap
+local font_size = 1 -- Font size for the minimap view
+local highlight_style = "select" -- use rectangular selection or background color
 
 -- Do a binary search to find how many chars a window is wide
 --[[local function chars_from_width(chars, width, char_px)
@@ -54,8 +57,8 @@ local function minimap()
 	local boss_cur_width = bossview.scroll_width
 
 	s = view.styles[view.STYLE_DEFAULT]
-	s.font = "Minimap" -- https://github.com/davestewart/minimap-font
-	s.size = 1
+	s.font = font -- https://github.com/davestewart/minimap-font
+	s.size = font_size
 	miniview:set_styles()
 
 	miniview.extra_ascent = -1
@@ -67,7 +70,7 @@ local function minimap()
 	miniview.scroll_width_tracking = false
 	miniview.scroll_width = 1
 	miniview.virtual_space_options = miniview.VS_RECTANGULARSELECTION
-	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = window_highlight
+	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = highlight_color
 	miniview.h_scroll_bar = false
 	miniview:set_x_caret_policy(0, -1)
 	miniview:set_y_caret_policy(miniview.CARET_STRICT & miniview.CARET_EVEN, -1)
@@ -99,23 +102,10 @@ local function minimap()
 		local ending_start = bv:position_from_line(ending)
 		local ending_end = bv.line_end_position[ending]
 		local ending_length = ending_end - ending_start
-		
-		-- FIXME: use
-		-- mv.column[mv.line_end_position[line]]
-		-- instead of manually calculating this
-		--
 		-- tabs are 1 char but take up a variable number visually, so we have to
 		-- calculate virtual space accordingly
-		local ending_line = string.sub(bv:get_line(ending),1,ending_length + 1)
-		local ending_vs = columns - ending_length
-		local tabspace = 0
-		for i = 1, ending_length do
-			if string.sub(ending_line, i, i) == "\t" then
-				tabspace = tabspace + (mv.tab_width - 1)
-			end
-		end
-		local 
-		ending_vs = ending_vs - tabspace
+		local tabspace = mv.column[mv.line_end_position[ending]] - ending_length
+		local ending_vs = columns - ending_length - tabspace
 
 		window_height = ending - start
 		mv.rectangular_selection_anchor = mv:position_from_line(start)
