@@ -11,12 +11,12 @@
 
 local M = {}
 
-local min_columns = 100 -- The minimum width of the minimap window, in text columns
-local padding = 5 -- Right margin for the minimap
-local highlight_color = 0xffaaaaaa -- Color of the current location highlight
-local font = "Minimap" -- The font to use for the minimap
-local font_size = 1 -- Font size for the minimap view
-local highlight_style = "select" -- use rectangular selection or background color
+M.min_columns = 100 -- The minimum width of the minimap window, in text columns
+M.padding = 5 -- Right margin for the minimap
+M.highlight_color = 0xffaaaaaa -- Color of the current location highlight
+M.font = "Minimap" -- The font to use for the minimap
+M.font_size = 1 -- Font size for the minimap view
+M.highlight_style = "select" -- use rectangular selection or background color
 
 -- Do a binary search to find how many chars a window is wide
 --[[local function chars_from_width(chars, width, char_px)
@@ -31,7 +31,7 @@ local highlight_style = "select" -- use rectangular selection or background colo
 	end
 	return chars
 end]]
-	
+
 function longest_line(view)
 	local line, line_length = 0, 0
 	local longest_line, longest_length = 0, 0
@@ -47,7 +47,7 @@ function longest_line(view)
 	until line >= last_line
 	return longest_line, longest_length
 end
-	
+
 local function minimap()
 	local bossview = view:split(true)
 	local miniview = view
@@ -57,8 +57,8 @@ local function minimap()
 	local boss_cur_width = bossview.scroll_width
 
 	s = view.styles[view.STYLE_DEFAULT]
-	s.font = font -- https://github.com/davestewart/minimap-font
-	s.size = font_size
+	s.font = M.font -- https://github.com/davestewart/minimap-font
+	s.size = M.font_size
 	miniview:set_styles()
 
 	miniview.extra_ascent = -1
@@ -70,17 +70,17 @@ local function minimap()
 	miniview.scroll_width_tracking = false
 	miniview.scroll_width = 1
 	miniview.virtual_space_options = miniview.VS_RECTANGULARSELECTION
-	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = highlight_color
+	miniview.element_color[miniview.ELEMENT_SELECTION_BACK] = M.highlight_color
 	miniview.h_scroll_bar = false
 	miniview:set_x_caret_policy(0, -1)
 	miniview:set_y_caret_policy(miniview.CARET_STRICT & miniview.CARET_EVEN, -1)
 	miniview.indentation_guides = miniview.IV_NONE
 	-- miniview.caret_style = miniview.CARETSTYLE_INVISIBLE
-	
+
 	local long_line, columns = longest_line(bossview)
-	columns = math.max(columns, min_columns)
-	miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + padding
-	
+	columns = math.max(columns, M.min_columns)
+	miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
+
 	-- I really don't like this but I can't find another way to make it behave
 	local function sync_views()
 		local current_view = view
@@ -92,7 +92,7 @@ local function minimap()
 			ui.goto_view(view)
 		end
 	end
-	
+
 	-- Highlight the portion of the buffer displayed in the boss view
 	-- and adjust the window width to accomodate the widest line
 	local function update_window(updated)
@@ -120,23 +120,23 @@ local function minimap()
 		mv.x_offset = 0
 		mv.scroll_width = 1
 	end
-	
+
 	-- Adjust the width of the mini view to accomodate
 	-- the longest line of the bossview
 	local function adjust_width()
 		if boss_cur_width ~= bossview.scroll_width then
 			boss_cur_width = bossview.scroll_width
 			long_line, columns = longest_line(bossview)
-			columns = math.max(columns, min_columns)
-			miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + padding
+			columns = math.max(columns, M.min_columns)
+			miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
 		end
 	end
-	
+
 	-- Jump to the clicked position in the minimap
 	local function jump_to_click(updated)
 		local bv, mv = bossview, miniview
 		sync_views()
-		if (updated & mv.UPDATE_SELECTION) and (_G.view == mv) 
+		if (updated & mv.UPDATE_SELECTION) and (_G.view == mv)
 			and (mv.current_pos == mv.anchor) then
 			local line = mv:line_from_position(mv.current_pos)
 			bv.first_visible_line = line - window_height//2
@@ -148,20 +148,20 @@ local function minimap()
 			update_window(bv.UPDATE_V_SCROLL)
 		end
 	end
-	
+
 	-- Clear the selection before the click is passed to Scintilla
 	local function clear_window()
 		if view == miniview then miniview:set_empty_selection(0) end
 	end
-	
+
 	local function reset_x()
 		miniview.x_offset = 0
 	end
-	
+
 	local function block_switch_events()
 		if view == miniview then return true end
 	end
-	
+
 	events.connect(events.VIEW_AFTER_SWITCH, clear_window)
 	events.connect(events.VIEW_AFTER_SWITCH, sync_views)
 	events.connect(events.UPDATE_UI, adjust_width)
@@ -171,7 +171,7 @@ local function minimap()
 	events.connect(events.BUFFER_AFTER_SWITCH, sync_views)
 	events.connect(events.BUFFER_BEFORE_SWITCH, block_switch_events, 1)
 	events.connect(events.BUFFER_AFTER_SWITCH, block_switch_events, 1)
-	
+
 	local function cleanup()
 		events.disconnect(events.VIEW_AFTER_SWITCH, clear_window)
 		events.disconnect(events.VIEW_AFTER_SWITCH, sync_views)
@@ -187,7 +187,7 @@ local function minimap()
 		events.disconnect(events.RESET_BEFORE, cleanup)
 		bossview:unsplit()
 	end
-	
+
 	miniview._unsplit, miniview.unsplit = miniview.unsplit, cleanup
 	bossview._unsplit, bossview.unsplit = bossview.unsplit, cleanup
 
