@@ -79,7 +79,7 @@ local function minimap()
 
 	local long_line, columns = longest_line(bossview)
 	columns = math.max(columns, M.min_columns)
-	--miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
+	miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
 
 	-- I really don't like this but I can't find another way to make it behave
 	local function sync_views()
@@ -128,7 +128,7 @@ local function minimap()
 			boss_cur_width = bossview.scroll_width
 			long_line, columns = longest_line(bossview)
 			columns = math.max(columns, M.min_columns)
-			--miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
+			miniview.width = miniview:text_width(miniview.STYLE_DEFAULT, string.rep('W', columns)) + M.padding
 		end
 	end
 
